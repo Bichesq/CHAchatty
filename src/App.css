@@ -1,0 +1,13 @@
+.sent {
+    
+    background-color: aquamarine;
+    border-radius: 5px;
+    align-self: end;
+}
+
+.received {
+    border-radius: 5px;
+    background-color: #fff;
+    align-self: start;
+
+}
