@@ -11,8 +11,9 @@ import Chat from './components/Chat';
 
 
 const App = () => {
-  return 
-  <Chat />
+  return (
+    <Chat />
+  )
 }
 
 export default App
