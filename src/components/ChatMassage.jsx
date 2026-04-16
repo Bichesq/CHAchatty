@@ -4,9 +4,9 @@ import Col from 'react-bootstrap/Col';
 import '../App.css'
 
 
-const ChatMassage = ({ message, userId }) => {
+const ChatMassage = ({ message, userId, currentUserId }) => {
     
-    if (userId == userId) {
+    if (userId === currentUserId) {
         return (
             <>
                 <Row className='justify-content-end m-1'>

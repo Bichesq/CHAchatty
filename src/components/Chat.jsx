@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import Container from 'react-bootstrap/Container';
 import Button from 'react-bootstrap/Button';
@@ -33,11 +33,12 @@ const dialog = [
 const socketUrl = "wss://birlb9bus7.execute-api.eu-central-1.amazonaws.com/production/";
 
 const Chat = () => {
-    const [messages, setMessages] = useState([]);
+    const [messages, setMessages] = useState(dialog);
     const [message, setMessage] = useState('');
     const [userName, setUserName] = useState('');
     const [userId, setUserId] = useState('');
     const [socket, setSocket] = useState(null);
+    const socketRef = useRef(null);
 
     // Initialize user on first load
     useEffect(() => {
@@ -45,40 +46,53 @@ const Chat = () => {
         const storedUserName = localStorage.getItem('chatUserName');
         
         if (storedUserId && storedUserName) {
-        setUserId(storedUserId);
-        setUserName(storedUserName);
+            setUserId(storedUserId);
+            setUserName(storedUserName);
         }
     }, []);
-    const ws = new WebSocket(socketUrl);
+
+    // WebSocket connection management
     useEffect(() => {
-        
+        if (!userName) return;
+
         if ("WebSocket" in window) {
             console.log("WebSocket is supported by your Browser!");
-
-            if (userName && !socket) { 
             
-                ws.onopen = () => {
-                    // when connection opens
-                    console.log('connection is open')
-                    web_socket = new WebSocket(socketUrl);
-                };
+            const ws = new WebSocket(socketUrl);
+            socketRef.current = ws;
 
-            
+            ws.onopen = () => {
+                console.log('Connection is open');
+            };
 
-                            
-                ws.onclose = () => {
-                    // trigger when connection get closed
-                    console.log("Connection is closed...");
-                };
-                setSocket(ws);
-            }
+            ws.onclose = () => {
+                console.log("Connection is closed...");
+            };
 
-            
+            ws.onerror = (error) => {
+                console.error("WebSocket error:", error);
+            };
+
+            ws.onmessage = (event) => {
+                console.log(event.data);
+                try {
+                    const data = JSON.parse(event.data);
+                    buildMessage(data);
+                } catch (e) {
+                    console.error("Failed to parse message:", e);
+                }
+            };
+
+            setSocket(ws);
+
+            return () => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.close();
+                }
+            };
         } else {
             console.log("WebSocket NOT supported by your Browser!");
-        }      
-      
-        return () => ws.close();
+        }
     }, [userName]);
 
     const handleUserRegistration = (e) => {
@@ -90,74 +104,42 @@ const Chat = () => {
     };    
     
     const sendMessage = () => {
-    // if (socket && socket.readyState === WebSocket.OPEN) {
-      const messageData = {
-        "action": "sendmessage",
-        "userId": userId,
-        "userName": userName,
-        "message": message,
-        "timestamp": new Date().toISOString()
-      };
-      
-      socket.send(JSON.stringify(messageData));
-      setMessage('');  // Clear the message input
-    // }
+        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+            const messageData = {
+                "action": "sendmessage",
+                "userId": userId,
+                "userName": userName,
+                "message": message,
+                "timestamp": new Date().toISOString()
+            };
+            
+            socketRef.current.send(JSON.stringify(messageData));
+            
+            // Add sent message to local state immediately
+            const newMessage = {
+                userId: userId,
+                message: message
+            };
+            setMessages((prevMessages) => [...prevMessages, newMessage]);
+            setMessage('');
+        } else {
+            console.warn("WebSocket is not connected");
+        }
     };
-    
-    const weReceive = () => {
-        ws.onmessage = (event) => {
-                    console.log(event.Data);
-                    console.log(event);               
-                    let obj = { "message": event.Data };
-                    const jsonString = JSON.stringify(obj);
-
-                    buildMessage(jsonString)// trigger when websocket received message
-                };
-
-    }
-    weReceive();
 
     const buildMessage = (msg) => {
-        if (msg && typeof msg !== Object) {
+        if (msg && typeof msg !== 'object') {
             msg = JSON.parse(msg);
         }
-        console.log("messages: ", messages);
         setMessages((prevMessages) => [...prevMessages, msg]);
-        console.log("messages: ", messages);
     }
 
-    let web_socket;
-    
-    const delay = async (ms) => {
-        return new Promise((resolve) => 
-            setTimeout(resolve, ms));
-    };
-
-    const handleEnterPress = async (event) => { 
-              
+    const handleEnterPress = (event) => { 
         if (event.key === "Enter") {
             event.preventDefault(); 
-            
             console.log("enter key pressed");
-            
             console.log("message to be sent: ", message);
-
-            // if (!msg.trim()) {
-            //     console.log('enter message')
-            //     return false;
-            // }
-            // web_socket = new WebSocket(socketUrl);
-
-            // if (web_socket) {
-            //     console.log("web_socket")
-                await delay(4000);
-            //     setMessage(msg);
-                sendMessage();
-                // web_socket.send(JSON.stringify({ "action": "sendmessage", "message": msg }));
-                console.log('message sent: ', message)
-            // } else {
-            //     console.log('no web_socket');
-            // }  
+            sendMessage();
             event.target.value = '';
         }        
     }
@@ -205,7 +187,7 @@ const Chat = () => {
         </Row>
         <Row className="flex-grow-1">
             <Col>
-                {messages.map(({ userId, message}) => <ChatMassage key={uuidv4()} message={message} userId={userId} />)}
+                {messages.map(({ userId: msgUserId, message: msgContent}) => <ChatMassage key={uuidv4()} message={msgContent} userId={msgUserId} currentUserId={userId} />)}
             </Col>
         </Row>
         <Row>
